@@ -5,7 +5,6 @@ from flask import Flask, render_template_string, request
 from google import genai
 from google.genai import errors
 
-# Define the Flask app instance at top-level
 app = Flask(__name__)
 
 # Initialize Gemini Client
@@ -162,13 +161,14 @@ def generate_feynman_analysis(prompt):
                 return response.text, None
             except errors.ServerError:
                 time.sleep(1)
-            except Exception as e:
+            except Exception:
                 break
 
     return None, "The AI servers are currently overloaded. Please wait a few seconds and try again."
 
-@app.route("/", methods=["GET", "POST"])
-def home():
+@app.route('/', defaults={'path': ''}, methods=["GET", "POST"])
+@app.route('/<path:path>', methods=["GET", "POST"])
+def home(path):
     result = None
     error_msg = None
     topic = ""
@@ -208,6 +208,3 @@ def home():
         result=result,
         error_msg=error_msg
     )
-
-# Strictly required for Vercel Python runtime WSGI resolution
-app = app
