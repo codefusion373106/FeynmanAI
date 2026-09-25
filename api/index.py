@@ -7,7 +7,7 @@ from google.genai import errors
 
 app = Flask(__name__)
 
-# Initialize Gemini Client
+# Initialize Gemini Client (automatically reads GEMINI_API_KEY environment variable)
 client = genai.Client()
 
 HTML_TEMPLATE = """
@@ -17,6 +17,7 @@ HTML_TEMPLATE = """
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Feynman AI - Learn by Teaching</title>
+    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -28,6 +29,7 @@ HTML_TEMPLATE = """
 </head>
 <body class="min-h-screen flex flex-col justify-between p-4 md:p-8">
 
+    <!-- Header -->
     <header class="max-w-4xl mx-auto w-full flex justify-between items-center mb-8">
         <div class="flex items-center gap-3">
             <div class="h-10 w-10 rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center font-bold text-xl shadow-lg shadow-indigo-500/30">
@@ -42,7 +44,10 @@ HTML_TEMPLATE = """
         </span>
     </header>
 
+    <!-- Main Content -->
     <main class="max-w-4xl mx-auto w-full grid grid-cols-1 md:grid-cols-12 gap-8 mb-auto">
+        
+        <!-- Input Form (Left Side) -->
         <div class="md:col-span-6 flex flex-col gap-5">
             <div class="glass p-6 rounded-2xl shadow-xl">
                 <h1 class="text-2xl font-bold mb-2">Teach to Learn</h1>
@@ -70,6 +75,7 @@ HTML_TEMPLATE = """
             </div>
         </div>
 
+        <!-- Evaluation Panel (Right Side) -->
         <div class="md:col-span-6">
             {% if error_msg %}
             <div class="glass p-6 rounded-2xl shadow-xl border border-rose-500/30 bg-rose-500/10 mb-6">
@@ -80,6 +86,8 @@ HTML_TEMPLATE = """
 
             {% if result %}
             <div class="glass p-6 rounded-2xl shadow-xl flex flex-col gap-6">
+                
+                <!-- Score Bar -->
                 <div class="flex items-center justify-between border-b border-slate-700/50 pb-4">
                     <div>
                         <h2 class="text-lg font-bold text-white">Clarity Score</h2>
@@ -90,6 +98,7 @@ HTML_TEMPLATE = """
                     </div>
                 </div>
 
+                <!-- Missing Concepts -->
                 <div>
                     <h3 class="text-xs font-semibold uppercase tracking-wider text-amber-400 mb-2 flex items-center gap-1.5">
                         ⚠️ Missing Key Concepts
@@ -103,6 +112,7 @@ HTML_TEMPLATE = """
                     </ul>
                 </div>
 
+                <!-- Unnecessary Jargon -->
                 <div>
                     <h3 class="text-xs font-semibold uppercase tracking-wider text-rose-400 mb-2 flex items-center gap-1.5">
                         🚫 Jargon / Complex Words Used
@@ -116,6 +126,7 @@ HTML_TEMPLATE = """
                     </ul>
                 </div>
 
+                <!-- Simplified Suggestion -->
                 <div class="border-t border-slate-700/50 pt-4">
                     <h3 class="text-xs font-semibold uppercase tracking-wider text-emerald-400 mb-2 flex items-center gap-1.5">
                         💡 Improved Explanation
@@ -124,8 +135,10 @@ HTML_TEMPLATE = """
                         "{{ result.better_explanation }}"
                     </p>
                 </div>
+
             </div>
             {% else %}
+            <!-- Placeholder state -->
             <div class="glass p-12 rounded-2xl shadow-xl flex flex-col items-center justify-center text-center h-full border-dashed border-slate-700">
                 <div class="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center text-2xl mb-4 text-slate-500">
                     🔍
@@ -135,8 +148,10 @@ HTML_TEMPLATE = """
             </div>
             {% endif %}
         </div>
+
     </main>
 
+    <!-- Footer -->
     <footer class="max-w-4xl mx-auto w-full text-center text-xs text-slate-600 mt-8">
         Built with Python, Flask & Gemini AI
     </footer>
@@ -147,6 +162,7 @@ HTML_TEMPLATE = """
 
 def generate_feynman_analysis(prompt):
     models_to_try = ["gemini-2.5-flash", "gemini-1.5-flash"]
+    last_error = None
     
     for model_name in models_to_try:
         for attempt in range(2):
@@ -159,12 +175,13 @@ def generate_feynman_analysis(prompt):
                     }
                 )
                 return response.text, None
-            except errors.ServerError:
+            except errors.ServerError as e:
                 time.sleep(1)
-            except Exception:
+            except Exception as e:
+                last_error = str(e)
                 break
 
-    return None, "The AI servers are currently overloaded. Please wait a few seconds and try again."
+    return None, f"Gemini API Error: {last_error if last_error else 'Unknown error'}"
 
 @app.route('/', defaults={'path': ''}, methods=["GET", "POST"])
 @app.route('/<path:path>', methods=["GET", "POST"])
@@ -198,8 +215,8 @@ def home(path):
             if raw_text:
                 try:
                     result = json.loads(raw_text)
-                except Exception:
-                    error_msg = "Could not parse AI response. Please try again."
+                except Exception as e:
+                    error_msg = f"Could not parse AI response: {str(e)}"
 
     return render_template_string(
         HTML_TEMPLATE,
@@ -208,3 +225,5 @@ def home(path):
         result=result,
         error_msg=error_msg
     )
+
+app = app
