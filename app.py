@@ -7,12 +7,8 @@ from google.genai import errors
 
 app = Flask(__name__)
 
-# Initialize client lazily to prevent cold-start crash if GEMINI_API_KEY is missing
-def get_gemini_client():
-    api_key = os.environ.get("GEMINI_API_KEY")
-    if not api_key:
-        return None
-    return genai.Client(api_key=api_key)
+# Initialize Gemini Client (automatically reads GEMINI_API_KEY env var)
+client = genai.Client()
 
 HTML_TEMPLATE = """
 <!DOCTYPE html>
@@ -22,8 +18,8 @@ HTML_TEMPLATE = """
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Feynman AI - Learn by Teaching</title>
     <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="[https://cdn.tailwindcss.com](https://cdn.tailwindcss.com)"></script>
+    <link href="[https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap](https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap)" rel="stylesheet">
     <style>
         body {
             font-family: 'Plus Jakarta Sans', sans-serif;
@@ -112,144 +108,4 @@ HTML_TEMPLATE = """
                         <h2 class="text-lg font-bold text-white">Clarity Score</h2>
                         <p class="text-xs text-slate-400">Based on simplicity & accuracy</p>
                     </div>
-                    <div class="text-3xl font-extrabold text-indigo-400 bg-indigo-500/10 px-4 py-2 rounded-xl border border-indigo-500/20">
-                        {{ result.score }}<span class="text-sm font-normal text-slate-400">/100</span>
-                    </div>
-                </div>
-
-                <!-- Missing Concepts -->
-                <div>
-                    <h3 class="text-xs font-semibold uppercase tracking-wider text-amber-400 mb-2 flex items-center gap-1.5">
-                        ⚠️ Missing Key Concepts
-                    </h3>
-                    <ul class="space-y-1.5 text-sm text-slate-300">
-                        {% for gap in result.missing_concepts %}
-                        <li class="flex items-start gap-2 bg-amber-500/10 p-2.5 rounded-lg border border-amber-500/20">
-                            <span class="text-amber-400">•</span> {{ gap }}
-                        </li>
-                        {% endfor %}
-                    </ul>
-                </div>
-
-                <!-- Unnecessary Jargon -->
-                <div>
-                    <h3 class="text-xs font-semibold uppercase tracking-wider text-rose-400 mb-2 flex items-center gap-1.5">
-                        🚫 Jargon / Complex Words Used
-                    </h3>
-                    <ul class="space-y-1.5 text-sm text-slate-300">
-                        {% for item in result.jargon_detected %}
-                        <li class="flex items-start gap-2 bg-rose-500/10 p-2.5 rounded-lg border border-rose-500/20">
-                            <span class="text-rose-400">•</span> {{ item }}
-                        </li>
-                        {% endfor %}
-                    </ul>
-                </div>
-
-                <!-- Simplified Suggestion -->
-                <div class="border-t border-slate-700/50 pt-4">
-                    <h3 class="text-xs font-semibold uppercase tracking-wider text-emerald-400 mb-2 flex items-center gap-1.5">
-                        💡 Improved Explanation
-                    </h3>
-                    <p class="text-sm text-slate-300 italic bg-emerald-500/10 p-3.5 rounded-xl border border-emerald-500/20 leading-relaxed">
-                        "{{ result.better_explanation }}"
-                    </p>
-                </div>
-
-            </div>
-            {% else %}
-            <!-- Placeholder state -->
-            <div class="glass p-12 rounded-2xl shadow-xl flex flex-col items-center justify-center text-center h-full border-dashed border-slate-700">
-                <div class="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center text-2xl mb-4 text-slate-500">
-                    🔍
-                </div>
-                <h3 class="text-lg font-medium text-slate-300 mb-1">Feedback Display</h3>
-                <p class="text-slate-500 text-sm max-w-xs">Enter a topic and your explanation on the left to evaluate your understanding.</p>
-            </div>
-            {% endif %}
-        </div>
-
-    </main>
-
-    <!-- Footer -->
-    <footer class="max-w-4xl mx-auto w-full text-center text-xs text-slate-600 mt-8">
-        Built with Python, Flask & Gemini AI
-    </footer>
-
-</body>
-</html>
-"""
-
-def generate_feynman_analysis(prompt):
-    """Handles API calls with retry logic and valid Gemini models."""
-    client = get_gemini_client()
-    if not client:
-        return None, "GEMINI_API_KEY environment variable is not configured on Vercel."
-
-    # Using official active Gemini models
-    models_to_try = ["gemini-2.5-flash", "gemini-1.5-flash"]
-    
-    for model_name in models_to_try:
-        for attempt in range(2):  # Retry up to 2 times
-            try:
-                response = client.models.generate_content(
-                    model=model_name,
-                    contents=prompt,
-                )
-                if response.text:
-                    return response.text, None
-            except errors.ServerError:
-                time.sleep(1)
-            except Exception as e:
-                print(f"Error on model {model_name}: {e}")
-                break
-
-    return None, "The AI service is temporarily unavailable. Please try again in a few seconds."
-
-@app.route("/", methods=["GET", "POST"])
-def home():
-    result = None
-    error_msg = None
-    topic = ""
-    explanation = ""
-
-    if request.method == "POST":
-        topic = request.form.get("topic", "")
-        explanation = request.form.get("explanation", "")
-
-        if topic and explanation:
-            prompt = f"""
-            You are an expert tutor practicing the Feynman Technique.
-            Analyze the following explanation provided by a student on the topic: "{topic}".
-
-            Student's Explanation:
-            "{explanation}"
-
-            Return ONLY a raw JSON object with these exact keys:
-            - "score": (number from 0 to 100 based on simplicity, accuracy, and clarity)
-            - "missing_concepts": (array of strings, key points or mechanisms the student omitted)
-            - "jargon_detected": (array of strings, complex or technical words they used without explaining)
-            - "better_explanation": (string, an ideal 2-3 sentence explanation a 12-year-old would understand)
-
-            Do NOT include markdown backticks or extra text outside the JSON.
-            """
-
-            raw_text, error_msg = generate_feynman_analysis(prompt)
-
-            if raw_text:
-                try:
-                    clean_text = raw_text.replace("```json", "").replace("```", "").strip()
-                    result = json.loads(clean_text)
-                except Exception as e:
-                    error_msg = "Could not parse AI response. Please try again."
-                    print("JSON Parsing Error:", e)
-
-    return render_template_string(
-        HTML_TEMPLATE,
-        topic=topic,
-        explanation=explanation,
-        result=result,
-        error_msg=error_msg
-    )
-
-if __name__ == "__main__":
-    app.run(debug=True)
+                    <div class="text-3xl font-extrabold text-indigo-400 bg-indigo-500/10 px-4
