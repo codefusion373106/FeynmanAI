@@ -184,9 +184,11 @@ def generate_feynman_analysis(prompt):
 
     return None, f"Gemini API Error: {last_error if last_error else 'Unknown error'}"
 
-@app.route('/', defaults={'path': ''}, methods=["GET", "POST"])
+
+@app.route('/', methods=["GET", "POST"])
+@app.route('/api/index', methods=["GET", "POST"])
 @app.route('/<path:path>', methods=["GET", "POST"])
-def home(path):
+def home(path=""):
     result = None
     error_msg = None
     topic = ""
