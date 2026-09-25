@@ -160,26 +160,27 @@ HTML_TEMPLATE = """
 </html>
 """
 
+
 def generate_feynman_analysis(prompt):
-    models_to_try = ["gemini-2.5-flash", "gemini-1.5-flash"]
+    # Try current generation production models
+    models_to_try = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash-latest"]
     last_error = None
     
     for model_name in models_to_try:
-        for attempt in range(2):
-            try:
-                response = client.models.generate_content(
-                    model=model_name,
-                    contents=prompt,
-                    config={
-                        'response_mime_type': 'application/json'
-                    }
-                )
-                return response.text, None
-            except errors.ServerError as e:
-                time.sleep(1)
-            except Exception as e:
-                last_error = str(e)
-                break
+        try:
+            response = client.models.generate_content(
+                model=model_name,
+                contents=prompt,
+                config={
+                    'response_mime_type': 'application/json'
+                }
+            )
+            return response.text, None
+        except errors.ServerError as e:
+            time.sleep(1)
+        except Exception as e:
+            last_error = str(e)
+            continue  # Try next model in list if model string fails
 
     return None, f"Gemini API Error: {last_error if last_error else 'Unknown error'}"
 
