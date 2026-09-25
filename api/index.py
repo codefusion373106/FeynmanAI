@@ -163,7 +163,7 @@ HTML_TEMPLATE = """
 
 def generate_feynman_analysis(prompt):
     # Use exact production model identifiers supported by the google-genai SDK
-    models_to_try = ["gemini-2.5-flash", "gemini-2.0-flash"]
+    models_to_try = ["gemini-2.5-flash", "gemini-3.8-flash"]
     last_error = None
     
     for model_name in models_to_try:
