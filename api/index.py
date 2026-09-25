@@ -5,9 +5,10 @@ from flask import Flask, render_template_string, request
 from google import genai
 from google.genai import errors
 
+# Define the Flask app instance at top-level
 app = Flask(__name__)
 
-# Initialize Gemini Client (automatically reads GEMINI_API_KEY env var)
+# Initialize Gemini Client
 client = genai.Client()
 
 HTML_TEMPLATE = """
@@ -17,34 +18,17 @@ HTML_TEMPLATE = """
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Feynman AI - Learn by Teaching</title>
-    <!-- Tailwind CSS CDN -->
-    <script src="[https://cdn.tailwindcss.com](https://cdn.tailwindcss.com)"></script>
-    <link href="[https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap](https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap)" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        body {
-            font-family: 'Plus Jakarta Sans', sans-serif;
-            background: #0f172a;
-            color: #f8fafc;
-        }
-        .glass {
-            background: rgba(30, 41, 59, 0.7);
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        .glass-input {
-            background: rgba(15, 23, 42, 0.6);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        .glass-input:focus {
-            border-color: #6366f1;
-            outline: none;
-            box-shadow: 0 0 15px rgba(99, 102, 241, 0.3);
-        }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: #0f172a; color: #f8fafc; }
+        .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .glass-input { background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .glass-input:focus { border-color: #6366f1; outline: none; box-shadow: 0 0 15px rgba(99, 102, 241, 0.3); }
     </style>
 </head>
 <body class="min-h-screen flex flex-col justify-between p-4 md:p-8">
 
-    <!-- Header -->
     <header class="max-w-4xl mx-auto w-full flex justify-between items-center mb-8">
         <div class="flex items-center gap-3">
             <div class="h-10 w-10 rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center font-bold text-xl shadow-lg shadow-indigo-500/30">
@@ -59,10 +43,7 @@ HTML_TEMPLATE = """
         </span>
     </header>
 
-    <!-- Main Content -->
     <main class="max-w-4xl mx-auto w-full grid grid-cols-1 md:grid-cols-12 gap-8 mb-auto">
-        
-        <!-- Input Form (Left Side) -->
         <div class="md:col-span-6 flex flex-col gap-5">
             <div class="glass p-6 rounded-2xl shadow-xl">
                 <h1 class="text-2xl font-bold mb-2">Teach to Learn</h1>
@@ -90,7 +71,6 @@ HTML_TEMPLATE = """
             </div>
         </div>
 
-        <!-- Evaluation Panel (Right Side) -->
         <div class="md:col-span-6">
             {% if error_msg %}
             <div class="glass p-6 rounded-2xl shadow-xl border border-rose-500/30 bg-rose-500/10 mb-6">
@@ -101,11 +81,133 @@ HTML_TEMPLATE = """
 
             {% if result %}
             <div class="glass p-6 rounded-2xl shadow-xl flex flex-col gap-6">
-                
-                <!-- Score Bar -->
                 <div class="flex items-center justify-between border-b border-slate-700/50 pb-4">
                     <div>
                         <h2 class="text-lg font-bold text-white">Clarity Score</h2>
                         <p class="text-xs text-slate-400">Based on simplicity & accuracy</p>
                     </div>
-                    <div class="text-3xl font-extrabold text-indigo-400 bg-indigo-500/10 px-4
+                    <div class="text-3xl font-extrabold text-indigo-400 bg-indigo-500/10 px-4 py-2 rounded-xl border border-indigo-500/20">
+                        {{ result.score }}<span class="text-sm font-normal text-slate-400">/100</span>
+                    </div>
+                </div>
+
+                <div>
+                    <h3 class="text-xs font-semibold uppercase tracking-wider text-amber-400 mb-2 flex items-center gap-1.5">
+                        ⚠️ Missing Key Concepts
+                    </h3>
+                    <ul class="space-y-1.5 text-sm text-slate-300">
+                        {% for gap in result.missing_concepts %}
+                        <li class="flex items-start gap-2 bg-amber-500/10 p-2.5 rounded-lg border border-amber-500/20">
+                            <span class="text-amber-400">•</span> {{ gap }}
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+
+                <div>
+                    <h3 class="text-xs font-semibold uppercase tracking-wider text-rose-400 mb-2 flex items-center gap-1.5">
+                        🚫 Jargon / Complex Words Used
+                    </h3>
+                    <ul class="space-y-1.5 text-sm text-slate-300">
+                        {% for item in result.jargon_detected %}
+                        <li class="flex items-start gap-2 bg-rose-500/10 p-2.5 rounded-lg border border-rose-500/20">
+                            <span class="text-rose-400">•</span> {{ item }}
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+
+                <div class="border-t border-slate-700/50 pt-4">
+                    <h3 class="text-xs font-semibold uppercase tracking-wider text-emerald-400 mb-2 flex items-center gap-1.5">
+                        💡 Improved Explanation
+                    </h3>
+                    <p class="text-sm text-slate-300 italic bg-emerald-500/10 p-3.5 rounded-xl border border-emerald-500/20 leading-relaxed">
+                        "{{ result.better_explanation }}"
+                    </p>
+                </div>
+            </div>
+            {% else %}
+            <div class="glass p-12 rounded-2xl shadow-xl flex flex-col items-center justify-center text-center h-full border-dashed border-slate-700">
+                <div class="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center text-2xl mb-4 text-slate-500">
+                    🔍
+                </div>
+                <h3 class="text-lg font-medium text-slate-300 mb-1">Feedback Display</h3>
+                <p class="text-slate-500 text-sm max-w-xs">Enter a topic and your explanation on the left to evaluate your understanding.</p>
+            </div>
+            {% endif %}
+        </div>
+    </main>
+
+    <footer class="max-w-4xl mx-auto w-full text-center text-xs text-slate-600 mt-8">
+        Built with Python, Flask & Gemini AI
+    </footer>
+
+</body>
+</html>
+"""
+
+def generate_feynman_analysis(prompt):
+    models_to_try = ["gemini-2.5-flash", "gemini-1.5-flash"]
+    
+    for model_name in models_to_try:
+        for attempt in range(2):
+            try:
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=prompt,
+                    config={
+                        'response_mime_type': 'application/json'
+                    }
+                )
+                return response.text, None
+            except errors.ServerError:
+                time.sleep(1)
+            except Exception as e:
+                break
+
+    return None, "The AI servers are currently overloaded. Please wait a few seconds and try again."
+
+@app.route("/", methods=["GET", "POST"])
+def home():
+    result = None
+    error_msg = None
+    topic = ""
+    explanation = ""
+
+    if request.method == "POST":
+        topic = request.form.get("topic", "")
+        explanation = request.form.get("explanation", "")
+
+        if topic and explanation:
+            prompt = f"""
+            You are an expert tutor practicing the Feynman Technique.
+            Analyze the following explanation provided by a student on the topic: "{topic}".
+
+            Student's Explanation:
+            "{explanation}"
+
+            Return a JSON object with these exact keys:
+            - "score": (number from 0 to 100 based on simplicity, accuracy, and clarity)
+            - "missing_concepts": (array of strings, key points or mechanisms the student omitted)
+            - "jargon_detected": (array of strings, complex or technical words they used without explaining)
+            - "better_explanation": (string, an ideal 2-3 sentence explanation a 12-year-old would understand)
+            """
+
+            raw_text, error_msg = generate_feynman_analysis(prompt)
+
+            if raw_text:
+                try:
+                    result = json.loads(raw_text)
+                except Exception:
+                    error_msg = "Could not parse AI response. Please try again."
+
+    return render_template_string(
+        HTML_TEMPLATE,
+        topic=topic,
+        explanation=explanation,
+        result=result,
+        error_msg=error_msg
+    )
+
+# Strictly required for Vercel Python runtime WSGI resolution
+app = app
