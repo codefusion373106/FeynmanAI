@@ -7,8 +7,12 @@ from google.genai import errors
 
 app = Flask(__name__)
 
-# Initialize Gemini Client (reads GEMINI_API_KEY environment variable)
-client = genai.Client()
+# Initialize client lazily to prevent cold-start crash if GEMINI_API_KEY is missing
+def get_gemini_client():
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        return None
+    return genai.Client(api_key=api_key)
 
 HTML_TEMPLATE = """
 <!DOCTYPE html>
@@ -176,26 +180,30 @@ HTML_TEMPLATE = """
 """
 
 def generate_feynman_analysis(prompt):
-    """Handles API calls with retry logic and model fallback for 503 errors."""
-    models_to_try = ["gemini-3.8-flash", "gemini-1.5-flash", "gemini-1.5-pro"]
+    """Handles API calls with retry logic and valid Gemini models."""
+    client = get_gemini_client()
+    if not client:
+        return None, "GEMINI_API_KEY environment variable is not configured on Vercel."
+
+    # Using official active Gemini models
+    models_to_try = ["gemini-2.5-flash", "gemini-1.5-flash"]
     
     for model_name in models_to_try:
-        for attempt in range(3):  # Retry up to 3 times per model
+        for attempt in range(2):  # Retry up to 2 times
             try:
-                print(f"Calling model '{model_name}' (Attempt {attempt + 1})...")
                 response = client.models.generate_content(
                     model=model_name,
                     contents=prompt,
                 )
-                return response.text, None
-            except errors.ServerError as e:
-                print(f"503 Server Busy on {model_name}. Retrying in 2s...")
-                time.sleep(2)
+                if response.text:
+                    return response.text, None
+            except errors.ServerError:
+                time.sleep(1)
             except Exception as e:
                 print(f"Error on model {model_name}: {e}")
-                break  # Try next model in list
+                break
 
-    return None, "The AI servers are currently overloaded. Please wait a few seconds and try again."
+    return None, "The AI service is temporarily unavailable. Please try again in a few seconds."
 
 @app.route("/", methods=["GET", "POST"])
 def home():
