@@ -162,8 +162,8 @@ HTML_TEMPLATE = """
 
 
 def generate_feynman_analysis(prompt):
-    # Try current generation production models
-    models_to_try = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash-latest"]
+    # Use exact production model identifiers supported by the google-genai SDK
+    models_to_try = ["gemini-2.5-flash", "gemini-2.0-flash"]
     last_error = None
     
     for model_name in models_to_try:
@@ -180,7 +180,7 @@ def generate_feynman_analysis(prompt):
             time.sleep(1)
         except Exception as e:
             last_error = str(e)
-            continue  # Try next model in list if model string fails
+            continue  # Fall back to the next model if the current one fails
 
     return None, f"Gemini API Error: {last_error if last_error else 'Unknown error'}"
 
